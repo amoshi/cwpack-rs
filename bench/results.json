@@ -1,0 +1,20 @@
+{
+  "note": "Placeholder filled after local timing; replace before final submit.",
+  "workload": "1e6 unsigned pack+unpack self-check",
+  "original_c": {
+    "p99_ms": null,
+    "rss_kb": null,
+    "throughput_ops_per_s": null
+  },
+  "cwpack_rs": {
+    "p99_ms": null,
+    "rss_kb": null,
+    "throughput_ops_per_s": null
+  },
+  "startup_ms": {
+    "original_c": null,
+    "cwpack_rs": null
+  },
+  "machine": "pending",
+  "git_source_sha": "833fec93903f047ae5c47936f884ba27fc4c7a4c"
+}

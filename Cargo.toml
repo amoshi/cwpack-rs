@@ -1,0 +1,18 @@
+[package]
+name = "cwpack"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Safe Rust port of CWPack (MessagePack encoder/decoder) for Port Mortem 2026"
+repository = "https://github.com/amoshi/cwpack-rs"
+readme = "README.md"
+keywords = ["msgpack", "messagepack", "cwpack"]
+categories = ["encoding"]
+
+[lib]
+name = "cwpack"
+crate-type = ["rlib", "staticlib", "cdylib"]
+
+[profile.release]
+lto = true
+codegen-units = 1
