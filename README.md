@@ -6,11 +6,11 @@ Source pin: `833fec93903f047ae5c47936f884ba27fc4c7a4c`
 
 ## Why this port
 
-CWPack is a no-alloc, buffer-oriented MessagePack codec with sticky error codes and overflow/underflow handlers. The interesting C→Rust work is not “call c2rust”, but:
+CWPack is a no-alloc, buffer-oriented MessagePack codec. This port:
 
-1. Prove behavioral equivalence against the **unmodified** C module test via a thin C ABI.
-2. Keep the **core logic in safe Rust** (`Result`, `to_be_bytes`, no type-punning).
-3. Confine `unsafe` to the FFI boundary only.
+1. Keeps **C-shaped names** (`cw_pack_*` / `cw_unpack_*`) on native Rust contexts for easy migration.
+2. Implements the codec **entirely in safe Rust** (`#![forbid(unsafe_code)]`) — no C FFI.
+3. Proves equivalence via **differential MessagePack bytes** (ops harness + benches) against original CWPack C as an oracle.
 
 ## Build (one command)
 
@@ -18,23 +18,16 @@ CWPack is a no-alloc, buffer-oriented MessagePack codec with sticky error codes 
 cargo build --release
 ```
 
-Produces `target/release/libcwpack.{a,dylib,rlib}`.
-
-Or via Docker:
-
-```bash
-docker build -t cwpack-rs .
-```
+Produces `target/release/libcwpack.rlib`.
 
 ## API — how to use
 
-Preferred surface matches CWPack C names so examples almost copy-paste.
+Native Rust only. Names and arity match CWPack C so examples almost copy-paste.
 
-| Surface | What | When |
-|---------|------|------|
-| **C-like Rust** | `CwPackContext` + `cw_pack_*` / `cw_unpack_*` | Application code |
-| **Low-level** | `cwpack::pack` / `unpack` (`encode_*`) | Custom cursors |
-| **C ABI** | `ffi` / `utils` + `include/*.h` | Link original C tests |
+| Surface | What |
+|---------|------|
+| **Public API** | `CwPackContext` / `CwUnpackContext` + `cw_pack_*` / `cw_unpack_*` |
+| **Low-level** | `cwpack::pack` / `unpack` (`encode_*`) |
 
 ### Cargo
 
@@ -58,7 +51,7 @@ cw_pack_str(&pc, "schema", 6);
 cw_pack_unsigned(&pc, 0);
 ```
 
-Rust (free functions — closest paste):
+Rust:
 
 ```rust
 use cwpack::{
@@ -78,13 +71,7 @@ assert_eq!(pc.return_code, 0);
 assert_eq!(pc.len_packed(), 18);
 ```
 
-Same names as **methods** on the context:
-
-```rust
-pc.cw_pack_map_size(2);
-pc.cw_pack_str(b"compact", 7);
-pc.cw_pack_boolean(true);
-```
+Or methods: `pc.cw_pack_map_size(2)`.
 
 | C | Rust |
 |---|------|
@@ -94,7 +81,6 @@ pc.cw_pack_boolean(true);
 | `cw_pack_array_size/map_size` | same |
 | `cw_pack_str/bin(ctx, ptr, len)` | `cw_pack_str(&mut pc, bytes, len)` |
 | `cw_pack_ext/time/insert` | same |
-| `cw_pack_set_compatibility` | same |
 | sticky `pc.return_code` | `pc.return_code` (`0` = ok) |
 
 ### Unpack
@@ -103,31 +89,20 @@ pc.cw_pack_boolean(true);
 use cwpack::{cw_look_ahead, cw_unpack_next, CwUnpackContext, ItemType};
 
 let mut uc = CwUnpackContext::new(packed_bytes);
-let t = cw_look_ahead(&mut uc);
+let _t = cw_look_ahead(&mut uc);
 cw_unpack_next(&mut uc);
 if uc.return_code == 0 && uc.item.type_code == ItemType::Str as i32 {
-    let s = uc.item_blob();
+    let _s = uc.item_blob();
 }
-// or: uc.cw_unpack_next();
 ```
 
 Also: `cw_skip_items(&mut uc, count)`.
 
-### Errors
+### Unsafe
 
-Sticky `return_code` like C. Numeric codes match `CWP_RC_*` (`cwpack::Error`). Low-level `encode_*` APIs return `Result` instead.
+**None.** `#![forbid(unsafe_code)]` on the crate. No C ABI / no `extern "C"`.
 
-### C ABI (link from C)
-
-```bash
-cargo build --release
-clang -O2 -I include your.c target/release/libcwpack.a \
-  -framework Security -framework CoreFoundation   # macOS
-```
-
-See `run-module-test.sh`.
-
-### Examples in-tree
+### Examples
 
 | Example | Purpose |
 |---------|---------|
@@ -135,42 +110,36 @@ See `run-module-test.sh`.
 | `examples/ops_pack.rs` | JSON differential ops → msgpack |
 | `examples/fuzz_harness.rs` | self fuzz |
 
-## Run original module test against the port
+## How we prove the port
 
 ```bash
-./run-module-test.sh
+cargo test --release          # smoke (C-like API)
+make json-diff                # C CWPack vs Rust: identical .mp bytes
+make bench                    # latency / RSS / throughput
+make fuzz                     # 60s self-fuzz
 ```
 
-Expected: `CWPack module test completed, no errors detected`
+Original C sources stay available as an **oracle** (sibling `../CWPack` or `CWPACK_SRC`). Hashed reference copy of the upstream module test: `tests/original/` (not linked into Rust).
 
-Original test file hashes: `tests/original/SHA256SUMS`.
-
-## Bench & JSON differential
-
-See [`bench/methodology.md`](bench/methodology.md) (latency/RSS micro-bench + JSON→ops→MessagePack C vs Rust byte compare).
-
-```bash
-make bench
-make json-diff
-```
+See [`bench/methodology.md`](bench/methodology.md) and [`docs/API.md`](docs/API.md).
 
 ## Layout
 
 ```
-src/           safe pack/unpack + C ABI (ffi/utils)
-include/       original C headers (for linking the C test)
-tests/original/  unmodified cwpack_module_test.c
-tests/smoke.rs   Rust-side smoke tests
-extra-tests/   JSON fixtures + differential harness
-fuzz/          differential harness
-bench/         methodology + results
-DECISIONS.md   architectural divergences
+src/             safe cw_* API + pack/unpack
+tests/smoke.rs   Rust API tests
+tests/original/  upstream module test kept for reference/hashes
+extra-tests/     JSON fixtures + differential harness
+fuzz/            fuzz harness
+bench/           methodology + results
+docs/API.md      API reference
+DECISIONS.md     architectural divergences
 ```
 
 ## Scope
 
-**In:** core `cwpack.c` API + `goodies/utils` (required by module test).  
-**Out (documented):** ObjC/Swift bindings, dump tool, basic-contexts, numeric-extensions, MPack/CMP perf comparison binary.
+**In:** core MessagePack pack/unpack (+ utils semantics where needed in Rust).  
+**Out:** C FFI, ObjC/Swift, dump tool, basic-contexts, numeric-extensions.
 
 ## License
 

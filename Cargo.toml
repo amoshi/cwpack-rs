@@ -11,7 +11,7 @@ categories = ["encoding"]
 
 [lib]
 name = "cwpack"
-crate-type = ["rlib", "staticlib", "cdylib"]
+crate-type = ["rlib"]
 
 [profile.release]
 lto = true

@@ -3,8 +3,8 @@ build:
 	cargo build --release
 test:
 	cargo test --release
-module-test: build
-	./run-module-test.sh
+module-test: test
+	@echo "No C FFI: use 'make json-diff' for C-vs-Rust MessagePack identity."
 fuzz:
 	CWPACK_FUZZ_SECS=60 cargo run --release --example fuzz_harness | tee fuzz/log.txt
 bench:

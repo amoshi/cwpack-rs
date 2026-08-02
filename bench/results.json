@@ -5,18 +5,18 @@
   "runs": 20,
   "warmup_runs": 2,
   "original_c": {
-    "p50_ms": 12.06775,
-    "p99_ms": 13.943292,
-    "mean_ms": 12.31615,
+    "p50_ms": 12.182125,
+    "p99_ms": 12.9695,
+    "mean_ms": 12.356592,
     "rss_kb": null,
-    "throughput_ops_per_s": 487165226.0
+    "throughput_ops_per_s": 485570779.0
   },
   "cwpack_rs": {
-    "p50_ms": 7.788542,
-    "p99_ms": 9.465708,
-    "mean_ms": 8.151685,
+    "p50_ms": 6.540625,
+    "p99_ms": 8.482916,
+    "mean_ms": 6.772431,
     "rss_kb": null,
-    "throughput_ops_per_s": 736044143.0
+    "throughput_ops_per_s": 885944796.0
   },
   "startup_ms": {
     "original_c_p99": 4.2e-05,
