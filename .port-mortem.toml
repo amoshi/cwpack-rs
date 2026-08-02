@@ -1,0 +1,7 @@
+track = "A"
+source_url = "https://github.com/clwi/CWPack"
+source_sha = "833fec93903f047ae5c47936f884ba27fc4c7a4c"
+source_name = "CWPack"
+target_language = "Rust"
+crate = "cwpack"
+team_notes = "Safe Rust core + C ABI shim for unmodified module test"
