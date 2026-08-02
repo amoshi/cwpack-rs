@@ -2,78 +2,76 @@
 
 Companion to the crate README. Behavioral match to [CWPack](https://github.com/clwi/CWPack).
 
-## Design
+## Preferred API: C names + context class
 
-- **No-alloc core:** caller supplies `&mut [u8]` (pack) or `&[u8]` (unpack).
-- **Cursor:** `pos` is the next byte to write/read; `end` is the exclusive limit (`buf.len()` for a full buffer).
-- **Containers:** pack/unpack size header first, then elements one-by-one (map: `2 * size` items).
-- **Compatibility mode:** `be_compatible == true` disables str8, maps bin→str, rejects ext/time (same as CWPack).
+Types: `CwPackContext`, `CwUnpackContext`  
+Functions: `cw_pack_*`, `cw_unpack_next`, `cw_skip_items`, `cw_look_ahead`  
+Also available as methods: `pc.cw_pack_map_size(2)`.
 
-## Safe pack — `cwpack::pack`
+```rust
+use cwpack::{cw_pack_map_size, cw_pack_str, cw_pack_boolean, cw_pack_unsigned, CwPackContext};
 
-| Function | Signature (conceptually) | Notes |
-|----------|--------------------------|-------|
-| `encode_nil` | `(buf, pos, end) -> Result<()>` | `0xc0` |
-| `encode_bool` | `(…, bool)` | `0xc2` / `0xc3` |
-| `encode_unsigned` | `(…, u64)` | positive int family |
-| `encode_signed` | `(…, i64)` | negative / mixed |
-| `encode_float` / `encode_double` | `(…, f32/f64)` | IEEE bits on wire |
-| `encode_str` | `(…, &[u8], be_compatible)` | UTF-8 not validated |
-| `encode_bin` | `(…, &[u8], be_compatible)` | |
-| `encode_ext` | `(…, i8, &[u8], be_compatible)` | |
-| `encode_array_size` / `encode_map_size` | `(…, u32)` | then pack elements |
-| `encode_time` | `(…, sec: i64, nsec: u32, be_compatible)` | ext type −1 |
-| `encode_insert` | `(…, &[u8])` | raw splice |
-| `reserve` | low-level slice reservation | used internally |
+let mut buffer = [0u8; 32];
+let mut pc = CwPackContext::new(&mut buffer);
+cw_pack_map_size(&mut pc, 2);
+cw_pack_str(&mut pc, b"compact", 7);
+cw_pack_boolean(&mut pc, true);
+cw_pack_str(&mut pc, b"schema", 6);
+cw_pack_unsigned(&mut pc, 0);
+assert_eq!(pc.return_code, 0);
+```
 
-On success `pos` advances. On failure returns `Error::BufferOverflow` (or `IllegalCall` / `ValueError` for ext/time rules).
+### Pack
 
-## Safe unpack — `cwpack::unpack`
+| C | Rust |
+|---|------|
+| `cw_pack_context_init(&pc, buf, len, hpo)` | `CwPackContext::new(&mut buf)` or `cw_pack_context_init(&mut pc, &mut buf)` |
+| `cw_pack_set_compatibility` | same |
+| `cw_pack_nil/true/false/boolean` | same |
+| `cw_pack_signed/unsigned` | `i64` / `u64` |
+| `cw_pack_float/double` | same |
+| `cw_pack_array_size/map_size` | same |
+| `cw_pack_str(ctx, ptr, len)` | `cw_pack_str(&mut pc, bytes, len)` |
+| `cw_pack_bin/ext/time/insert` | same shape |
+| `pc.return_code` | sticky `i32`, `0` = ok |
+| `pc.current - pc.start` | `pc.len_packed()` |
 
-| Function | Notes |
-|----------|-------|
-| `unpack_next(buf, pos, end) -> Result<Decoded>` | consumes one item |
-| `skip_items(buf, pos, end, count)` | like CWPack `cw_skip_items` |
-| `look_ahead(buf, pos, end) -> Result<i32>` | type code, does not advance `pos` |
+### Unpack
 
-### `Decoded`
+| C | Rust |
+|---|------|
+| `cw_unpack_context_init` | `CwUnpackContext::new(buf)` |
+| `cw_unpack_next` | same; fills `uc.item` (`Decoded`) |
+| `cw_skip_items` | same |
+| `cw_look_ahead` | same → `i32` type code |
+| `uc.item.as.str` | `uc.item_blob()` / `item.blob_off`+`blob_len` |
 
-| Field | Meaning |
-|-------|---------|
-| `type_code` | CWPack `cwpack_item_types` / EXT tag |
-| `boolean` | bool payload |
-| `u64` / `i64` | integer payload (union overlay in C) |
-| `real` / `long_real` | f32 / f64 |
-| `size` | array/map length |
-| `blob_off` / `blob_len` | str/bin/ext bytes inside `buf` |
-| `time_sec` / `time_nsec` | timestamp |
+`Decoded` fields: `type_code`, `boolean`, `u64`/`i64`, `real`/`long_real`, `size`, `blob_off`/`blob_len`, `time_sec`/`time_nsec`.
 
-Use `cwpack::ItemType` for named constants (`Nil = 300`, `Str = 306`, …; timestamp = `-1`).
+## Low-level: `pack` / `unpack`
 
-## Errors — `cwpack::Error`
+Cursor-style `encode_*` / `unpack_next` returning `Result` — used internally by the C-like layer. See module docs.
 
-| Variant | Code | Typical cause |
-|---------|------|----------------|
-| `Ok` | 0 | |
-| `EndOfInput` | -1 | unpack past end (header) |
-| `BufferOverflow` | -2 | pack past `end` |
-| `BufferUnderflow` | -3 | unpack past end (body) |
-| `MalformedInput` | -4 | bad tag |
-| `IllegalCall` | -7 | ext/time in compatible mode |
-| `TypeError` | -10 | utils typed unpack mismatch |
-| `ValueError` | -11 | e.g. nsec ≥ 1e9 |
-| `WrongTimestampLength` | -12 | |
+## Errors
 
-`Result<T>` is `core::result::Result<T, Error>`.
+| Variant | Code |
+|---------|------|
+| `Ok` | 0 |
+| `EndOfInput` | -1 |
+| `BufferOverflow` | -2 |
+| `BufferUnderflow` | -3 |
+| `MalformedInput` | -4 |
+| `IllegalCall` | -7 |
+| `TypeError` | -10 |
+| `ValueError` | -11 |
+| `WrongTimestampLength` | -12 |
 
-## C ABI — `cwpack::ffi` / `utils`
+## C ABI — `ffi` / `utils`
 
-Exported `extern "C"` names match `include/cwpack.h` and utils headers. Context structs are `#[repr(C)]` (pack 56 / unpack 64 / item 24 on darwin arm64). Sticky `return_code`: after an error, pack/unpack no-ops until re-init.
+`extern "C"` symbols for linking C tests (`include/cwpack.h`). Not required for normal Rust use.
 
-Link example: see `run-module-test.sh`.
+## Related
 
-## Related docs
-
-- [`README.md`](../README.md) — quick start
-- [`bench/methodology.md`](../bench/methodology.md) — benches + JSON differential
-- [`DECISIONS.md`](../DECISIONS.md) — divergences from C
+- [`README.md`](../README.md)
+- [`bench/methodology.md`](../bench/methodology.md)
+- [`DECISIONS.md`](../DECISIONS.md)

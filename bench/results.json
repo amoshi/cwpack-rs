@@ -5,21 +5,21 @@
   "runs": 20,
   "warmup_runs": 2,
   "original_c": {
-    "p50_ms": 11.48875,
-    "p99_ms": 13.506292,
-    "mean_ms": 11.748175,
+    "p50_ms": 12.06775,
+    "p99_ms": 13.943292,
+    "mean_ms": 12.31615,
     "rss_kb": null,
-    "throughput_ops_per_s": 510717622.0
+    "throughput_ops_per_s": 487165226.0
   },
   "cwpack_rs": {
-    "p50_ms": 7.5165,
-    "p99_ms": 8.074833,
-    "mean_ms": 7.627616,
+    "p50_ms": 7.788542,
+    "p99_ms": 9.465708,
+    "mean_ms": 8.151685,
     "rss_kb": null,
-    "throughput_ops_per_s": 786615372.0
+    "throughput_ops_per_s": 736044143.0
   },
   "startup_ms": {
-    "original_c_p99": 8.3e-05,
+    "original_c_p99": 4.2e-05,
     "cwpack_rs_p99": 4.2e-05,
     "note": "in-process init+nil (not process spawn)"
   },
