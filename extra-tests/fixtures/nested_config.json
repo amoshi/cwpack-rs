@@ -1,0 +1,31 @@
+{
+  "apiVersion": "v1",
+  "kind": "Config",
+  "metadata": {
+    "name": "demo",
+    "labels": {
+      "app": "cwpack",
+      "env": "test"
+    }
+  },
+  "spec": {
+    "replicas": 3,
+    "enabled": true,
+    "threshold": 0.85,
+    "upstream": null,
+    "ports": [80, 443, 8080],
+    "volumes": [
+      {
+        "name": "data",
+        "mountPath": "/var/lib/data",
+        "readOnly": false
+      }
+    ],
+    "resources": {
+      "limits": {
+        "cpu": "500m",
+        "memory": "256Mi"
+      }
+    }
+  }
+}
