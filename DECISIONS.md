@@ -12,13 +12,17 @@ Non-trivial divergences from clwi/CWPack and why. (Port Mortem Decision Log.)
    Entire crate is safe. No type-punning; wire endian via `to_be_bytes` / `from_be_bytes`; floats via `to_bits` / `from_bits`.
 
 4. **No link to original `libcwpack` C (Rule §05)**  
-   Rust never calls into the C library as implementation. Original CWPack is a **differential oracle** only (`ops_pack_c` / benches).
+   Rust never calls into the C library as implementation. Original CWPack is a **differential oracle** only (`ops_pack_c`, cross-roundtrip C reader/writer, benches).
 
 5. **Equivalence without FFI module test**  
-   Instead of linking `cwpack_module_test.c` against a Rust cdylib, we prove byte-identity via `extra-tests` JSON→ops→MessagePack (C vs Rust) plus smoke tests and fuzz. Upstream test file is kept hashed under `tests/original/` as reference.
+   Instead of linking `cwpack_module_test.c` against a Rust cdylib, we prove behavior via:
+   - `make json-diff` — byte-identical MessagePack (JSON→ops→C vs Rust)
+   - `make cross-roundtrip` — Rust↔C pack/unpack through `.mp` files + field checks
+   - `cargo test` smoke + `make fuzz` self roundtrip  
+   Upstream module test is kept hashed under `tests/original/` as reference (not linked).
 
-6. **Utils typed helpers not exported as C**  
-   Upstream module test uses `cwpack_utils`; we cover the same pack/unpack surface in Rust. ObjC/Swift/dump/basic-contexts remain out of scope.
+6. **No separate `cwpack_utils` crate surface**  
+   Upstream module test uses typed utils helpers; we exercise the same pack/unpack types through the `cw_*` API and differential harnesses. ObjC/Swift/dump/basic-contexts remain out of scope.
 
 7. **Big-endian via `to_be_bytes` / `from_be_bytes`**  
    Replaced CWPack’s LE/BE type-punning macros. Wire format unchanged.
@@ -42,4 +46,4 @@ Non-trivial divergences from clwi/CWPack and why. (Port Mortem Decision Log.)
     `basic-contexts` stays out; prefer `Vec` if added later.
 
 14. **Docker image builds the Rust library only**  
-    No C-linked module test in the image; run `cargo test` / `make json-diff` for verification.
+    Image runs `cargo test`; full C-oracle checks need a sibling `CWPack` checkout (`make json-diff`, `make cross-roundtrip`, `make bench`).

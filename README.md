@@ -109,12 +109,14 @@ Also: `cw_skip_items(&mut uc, count)`.
 | `examples/rust_bench.rs` | micro-bench |
 | `examples/ops_pack.rs` | JSON differential ops → msgpack |
 | `examples/fuzz_harness.rs` | self fuzz |
+| `examples/cross_write.rs` / `cross_read.rs` | Rust↔C file roundtrip |
 
 ## How we prove the port
 
 ```bash
 cargo test --release          # smoke (C-like API)
 make json-diff                # C CWPack vs Rust: identical .mp bytes
+make cross-roundtrip          # Rust→file→C verify, C→file→Rust verify
 make bench                    # latency / RSS / throughput
 make fuzz                     # 60s self-fuzz
 ```

@@ -1,4 +1,4 @@
-.PHONY: build test module-test fuzz bench json-diff
+.PHONY: build test module-test fuzz bench json-diff cross-roundtrip
 build:
 	cargo build --release
 test:
@@ -11,3 +11,5 @@ bench:
 	chmod +x bench/run.sh && ./bench/run.sh
 json-diff:
 	chmod +x extra-tests/run_json_diff.sh && ./extra-tests/run_json_diff.sh
+cross-roundtrip:
+	chmod +x extra-tests/run_cross_roundtrip.sh && ./extra-tests/run_cross_roundtrip.sh

@@ -33,11 +33,15 @@ make json-diff
 # optional large fixtures:
 INCLUDE_LARGE=1 ./extra-tests/run_json_diff.sh
 
-# 3) Performance: C oracle vs Rust (p50/p99/RSS/throughput)
+# 3) Cross-language file roundtrip (pack ↔ unpack across languages)
+make cross-roundtrip
+# Rust → .mp → C unpack+check; C → .mp → Rust unpack+check; bytes identical
+
+# 4) Performance: C oracle vs Rust (p50/p99/RSS/throughput)
 make bench
 # writes bench/results.json
 
-# 4) Differential self-fuzz (Rust pack↔unpack roundtrip)
+# 5) Differential self-fuzz (Rust pack↔unpack roundtrip)
 make fuzz
 # or: CWPACK_FUZZ_SECS=60 cargo run --release --example fuzz_harness | tee fuzz/log.txt
 ```
@@ -46,6 +50,7 @@ make fuzz
 |------|---------|----------------|--------------------|
 | Smoke | `cargo test --release` | `cw_pack_*` API works | no |
 | JSON diff | `make json-diff` | C and Rust emit **same `.mp` bytes** | **yes** |
+| Cross file | `make cross-roundtrip` | Rust↔C pack/unpack via files | **yes** |
 | Bench | `make bench` | latency / RSS / throughput vs C | **yes** |
 | Fuzz | `make fuzz` | self roundtrip, 60s, 0 divergences | no |
 
@@ -115,7 +120,47 @@ Artifacts: `extra-tests/out/` (`*.ops`, `*.c.mp`, `*.rs.mp`).
 
 ---
 
-## 3. Micro-benchmark (C oracle vs Rust)
+## 3. Cross-language file roundtrip
+
+**Purpose:** prove that MessagePack written by one language is correctly **unpacked and field-checked** by the other — not only that packers emit identical bytes (that is §2), but that each side’s unpack path understands the other’s file.
+
+Complements `json-diff`: here the artifact is a real `.mp` file on disk, and verification walks types/values with `cw_unpack_next` (C oracle / Rust API).
+
+### Canonical object (same layout both writers)
+
+```
+map(4):
+  "compact" -> true
+  "schema"  -> 0
+  "name"    -> "demo"
+  "vals"    -> array(3): -32, 255, nil
+```
+
+Key order is fixed so both packers produce the same encoding.
+
+### Pipeline
+
+1. **Rust pack → file** — `examples/cross_write.rs` (`cw_pack_*`) → `extra-tests/out/cross_from_rust.mp`
+2. **C unpack + check** — `extra-tests/cross_read.c` + `CWPack/src/cwpack.c` reads the file, asserts each field, expects `CWP_RC_END_OF_INPUT`
+3. **C pack → file** — `extra-tests/cross_write.c` → `extra-tests/out/cross_from_c.mp`
+4. **Rust unpack + check** — `examples/cross_read.rs` mirrors the same field checks
+5. **`cmp`** — both `.mp` files must be byte-identical
+
+### Run
+
+```bash
+make cross-roundtrip
+# equivalent:
+./extra-tests/run_cross_roundtrip.sh
+```
+
+Needs `../CWPack` (or `CWPACK_SRC`). Artifacts under `extra-tests/out/`.
+
+**Pass:** script exits 0; stderr shows `c verified OK` / `rust verified OK` and identical byte sizes.
+
+---
+
+## 4. Micro-benchmark (C oracle vs Rust)
 
 **Purpose:** honest p50/p99/mean, RSS, throughput, startup — same workload both sides.
 
@@ -159,7 +204,7 @@ Writes **`bench/results.json`**:
 
 ---
 
-## 4. Fuzz (Rust self-differential)
+## 5. Fuzz (Rust self-differential)
 
 **Purpose:** pack→unpack roundtrip stress; optional Port Mortem “60s+” log.
 
@@ -171,7 +216,7 @@ CWPACK_FUZZ_SECS=3 cargo run --release --example fuzz_harness | tee fuzz/log.txt
 
 Expect `divergences=0`. Log: `fuzz/log.txt`.
 
-This does **not** call C; for C-vs-Rust use `make json-diff`.
+This does **not** call C; for C-vs-Rust use `make json-diff` / `make cross-roundtrip`.
 
 ---
 
