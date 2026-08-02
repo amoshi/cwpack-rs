@@ -10,7 +10,7 @@ CWPack is a no-alloc, buffer-oriented MessagePack codec. This port:
 
 1. Keeps **C-shaped names** (`cw_pack_*` / `cw_unpack_*`) on native Rust contexts for easy migration.
 2. Implements the codec **entirely in safe Rust** (`#![forbid(unsafe_code)]`) — no C FFI.
-3. Proves equivalence via **differential MessagePack bytes** (ops harness + benches) against original CWPack C as an oracle.
+3. Proves equivalence via **differential tests** against original CWPack C as an oracle (byte-identity, cross-language roundtrip, benches) — and documents a latent upstream sticky-error bug.
 
 ## Build (one command)
 
@@ -110,6 +110,7 @@ Also: `cw_skip_items(&mut uc, count)`.
 | `examples/ops_pack.rs` | JSON differential ops → msgpack |
 | `examples/fuzz_harness.rs` | self fuzz |
 | `examples/cross_write.rs` / `cross_read.rs` | Rust↔C file roundtrip |
+| `examples/sticky_insert_ok.rs` | sticky insert: no fake `payload` after error (vs C bug) |
 
 ## How we prove the port
 
@@ -117,13 +118,24 @@ Also: `cw_skip_items(&mut uc, count)`.
 cargo test --release          # smoke (C-like API)
 make json-diff                # C CWPack vs Rust: identical .mp bytes
 make cross-roundtrip          # Rust→file→C verify, C→file→Rust verify
+make sticky-insert            # upstream bug: C decodes payload=66; Rust honest error
 make bench                    # latency / RSS / throughput
 make fuzz                     # 60s self-fuzz
 ```
 
 Original C sources stay available as an **oracle** (sibling `../CWPack` or `CWPACK_SRC`). Hashed reference copy of the upstream module test: `tests/original/` (not linked into Rust).
 
-See [`bench/methodology.md`](bench/methodology.md) and [`docs/API.md`](docs/API.md).
+See [`bench/methodology.md`](bench/methodology.md), [`DECISIONS.md`](DECISIONS.md) §9, and [`docs/API.md`](docs/API.md).
+
+### Upstream bug (Bug Catcher): sticky `cw_pack_insert`
+
+Stock CWPack `cw_pack_insert` ignores sticky `return_code`. Practical demo (`make sticky-insert`):
+
+1. Encode `{ "status": true, "payload": <ext> }` with compatibility ON → EXT fails (`ILLEGAL_CALL`).
+2. Fallback `cw_pack_insert("BUG!")` — **C still appends**; Rust no-ops.
+3. Best-effort send of `start..current` → receiver unpacks **`payload = 66`** on C (`'B'` as fixint), while Rust yields a decode **error** (incomplete map).
+
+Details: [`DECISIONS.md`](DECISIONS.md) §9 · [`bench/methodology.md`](bench/methodology.md) §4.
 
 ## Layout
 
@@ -131,11 +143,11 @@ See [`bench/methodology.md`](bench/methodology.md) and [`docs/API.md`](docs/API.
 src/             safe cw_* API + pack/unpack
 tests/smoke.rs   Rust API tests
 tests/original/  upstream module test kept for reference/hashes
-extra-tests/     JSON fixtures + differential harness
+extra-tests/     JSON / cross-roundtrip / sticky-insert differentials
 fuzz/            fuzz harness
 bench/           methodology + results
 docs/API.md      API reference
-DECISIONS.md     architectural divergences
+DECISIONS.md     architectural divergences (+ upstream sticky-insert bug §9)
 ```
 
 ## Scope

@@ -4,7 +4,7 @@ How to prove and measure the port under the current design:
 
 - **Native safe Rust only** (`#![forbid(unsafe_code)]`) — no C FFI / no linking of `cwpack_module_test.c` into Rust.
 - **C-shaped API** (`CwPackContext` + `cw_pack_*` / `cw_unpack_*`) implemented in Rust.
-- **Original CWPack C** is an **oracle** (sibling checkout), used for byte-diff and latency compare — never as a dependency of the Rust crate.
+- **Original CWPack C** is an **oracle** (sibling checkout), used for byte-diff, cross-language roundtrip, latent-bug demos, and latency compare — never as a dependency of the Rust crate.
 
 Source pin: `833fec93903f047ae5c47936f884ba27fc4c7a4c`  
 Layout: `cwpack-rs/` next to `CWPack/` (or set `CWPACK_SRC`).
@@ -37,11 +37,15 @@ INCLUDE_LARGE=1 ./extra-tests/run_json_diff.sh
 make cross-roundtrip
 # Rust → .mp → C unpack+check; C → .mp → Rust unpack+check; bytes identical
 
-# 4) Performance: C oracle vs Rust (p50/p99/RSS/throughput)
+# 4) Latent C bug (Bug Catcher): sticky insert → wrong decoded field
+make sticky-insert
+# C: receiver sees payload=66; Rust: honest unpack error (no fake int)
+
+# 5) Performance: C oracle vs Rust (p50/p99/RSS/throughput)
 make bench
 # writes bench/results.json
 
-# 5) Differential self-fuzz (Rust pack↔unpack roundtrip)
+# 6) Differential self-fuzz (Rust pack↔unpack roundtrip)
 make fuzz
 # or: CWPACK_FUZZ_SECS=60 cargo run --release --example fuzz_harness | tee fuzz/log.txt
 ```
@@ -51,6 +55,7 @@ make fuzz
 | Smoke | `cargo test --release` | `cw_pack_*` API works | no |
 | JSON diff | `make json-diff` | C and Rust emit **same `.mp` bytes** | **yes** |
 | Cross file | `make cross-roundtrip` | Rust↔C pack/unpack via files | **yes** |
+| Sticky insert | `make sticky-insert` | C: `payload=66` corruption; Rust: no fake field | **yes** |
 | Bench | `make bench` | latency / RSS / throughput vs C | **yes** |
 | Fuzz | `make fuzz` | self roundtrip, 60s, 0 divergences | no |
 
@@ -160,7 +165,60 @@ Needs `../CWPack` (or `CWPACK_SRC`). Artifacts under `extra-tests/out/`.
 
 ---
 
-## 4. Micro-benchmark (C oracle vs Rust)
+## 4. Sticky `cw_pack_insert` bug (C broken / Rust fixed)
+
+**Purpose:** document a **latent bug in upstream CWPack** found while porting (Port Mortem “Bug Catcher”), with a **user-visible wrong field** — not only “bytes were written”, but a receiver that unpacks a plausible incorrect value.
+
+### Upstream contract (CWPack README)
+
+1. **Backward compatibility:** with compatibility mode on, packing **EXT** (and TIMESTAMP) is illegal.
+2. **Error handling:** once a context has an error, further calls are immediate no-ops (sticky `return_code`) so callers may batch packs and check once at the end.
+
+Almost every `cw_pack_*` in `cwpack.c` starts with `if (pack_context->return_code) return;`.  
+**`cw_pack_insert` does not** — after a sticky error it can still `memcpy` and advance `current`.
+
+### Practical story (what the user sees)
+
+App encodes `{ "status": true, "payload": <ext> }` with compatibility ON:
+
+1. Pack map + `status`/`true` + key `payload` (17 bytes so far).
+2. `cw_pack_ext` → sticky **`ILLEGAL_CALL` (-7)**; value not written.
+3. Fallback `cw_pack_insert("BUG!")` while sticky error is set:
+   - **Stock C:** appends `42 55 47 21` → **21 bytes** total.
+   - **cwpack-rs:** no-op → stays **17 bytes** (truncated after the key).
+4. Best-effort sender ships `start..current` despite `rc != OK`.
+5. Receiver unpacks:
+   - **C:** `status=true`, **`payload=66`** (`'B'` as MessagePack fixint) — silent wrong typed data.
+   - **Rust:** `status=true`, then **unpack error** on `payload` (incomplete map) — no fake integer.
+
+Sample C wire after the bug:
+
+```text
+82 a6 73 74 61 74 75 73 c3 a7 70 61 79 6c 6f 61 64 42 55 47 21
+                                 ^-- key "payload" --^  B  U  G  !
+```
+
+### Run
+
+```bash
+make sticky-insert
+# equivalent:
+./extra-tests/run_sticky_insert.sh
+```
+
+| Side | Source | Expected |
+|------|--------|----------|
+| C | `extra-tests/sticky_insert_bug.c` + `CWPack/src/cwpack.c` | `payload = 66` + `C BUG CONFIRMED`, exit **1** |
+| Rust | `examples/sticky_insert_ok.rs` | `payload = <error …>` + `Rust OK`, exit **0** |
+
+Harness passes only if C still exhibits the corruption **and** Rust does not invent a fake field.  
+If upstream adds the missing `return_code` check to `cw_pack_insert`, update this harness (C would exit 0).
+
+Also recorded in [`DECISIONS.md`](../DECISIONS.md) §9.
+
+---
+
+## 5. Micro-benchmark (C oracle vs Rust)
 
 **Purpose:** honest p50/p99/mean, RSS, throughput, startup — same workload both sides.
 
@@ -204,7 +262,7 @@ Writes **`bench/results.json`**:
 
 ---
 
-## 5. Fuzz (Rust self-differential)
+## 6. Fuzz (Rust self-differential)
 
 **Purpose:** pack→unpack roundtrip stress; optional Port Mortem “60s+” log.
 
@@ -216,7 +274,7 @@ CWPACK_FUZZ_SECS=3 cargo run --release --example fuzz_harness | tee fuzz/log.txt
 
 Expect `divergences=0`. Log: `fuzz/log.txt`.
 
-This does **not** call C; for C-vs-Rust use `make json-diff` / `make cross-roundtrip`.
+This does **not** call C; for C-vs-Rust use `make json-diff` / `make cross-roundtrip` / `make sticky-insert`.
 
 ---
 

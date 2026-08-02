@@ -1,4 +1,4 @@
-.PHONY: build test module-test fuzz bench json-diff cross-roundtrip
+.PHONY: build test module-test fuzz bench json-diff cross-roundtrip sticky-insert
 build:
 	cargo build --release
 test:
@@ -13,3 +13,5 @@ json-diff:
 	chmod +x extra-tests/run_json_diff.sh && ./extra-tests/run_json_diff.sh
 cross-roundtrip:
 	chmod +x extra-tests/run_cross_roundtrip.sh && ./extra-tests/run_cross_roundtrip.sh
+sticky-insert:
+	chmod +x extra-tests/run_sticky_insert.sh && ./extra-tests/run_sticky_insert.sh
