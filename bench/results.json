@@ -1,20 +1,38 @@
 {
-  "note": "Placeholder filled after local timing; replace before final submit.",
-  "workload": "1e6 unsigned pack+unpack self-check",
+  "workload": "1e6 pack(u16-range,u str'bench',nil) buffer-reuse + 1e6 unpack of fixed 3-item msg",
+  "ops_per_run": 6000000,
+  "iterations": 1000000,
+  "runs": 20,
+  "warmup_runs": 2,
   "original_c": {
-    "p99_ms": null,
+    "p50_ms": 11.48875,
+    "p99_ms": 13.506292,
+    "mean_ms": 11.748175,
     "rss_kb": null,
-    "throughput_ops_per_s": null
+    "throughput_ops_per_s": 510717622.0
   },
   "cwpack_rs": {
-    "p99_ms": null,
+    "p50_ms": 7.5165,
+    "p99_ms": 8.074833,
+    "mean_ms": 7.627616,
     "rss_kb": null,
-    "throughput_ops_per_s": null
+    "throughput_ops_per_s": 786615372.0
   },
   "startup_ms": {
-    "original_c": null,
-    "cwpack_rs": null
+    "original_c_p99": 8.3e-05,
+    "cwpack_rs_p99": 4.2e-05,
+    "note": "in-process init+nil (not process spawn)"
   },
-  "machine": "pending",
-  "git_source_sha": "833fec93903f047ae5c47936f884ba27fc4c7a4c"
+  "machine": "Darwin 25.5.0 arm64",
+  "cpu": "Apple M4 Pro",
+  "toolchains": {
+    "clang": "Apple clang version 16.0.0 (clang-1600.0.26.4)",
+    "rustc": "rustc 1.87.0 (17067e9ac 2025-05-09) (Homebrew)"
+  },
+  "git_source_sha": "833fec93903f047ae5c47936f884ba27fc4c7a4c",
+  "commands": {
+    "run": "bench/run.sh",
+    "c_build": "clang -O3 -I ../CWPack/src bench/c_bench.c ../CWPack/src/cwpack.c",
+    "rust_build": "cargo build --release --example rust_bench"
+  }
 }
