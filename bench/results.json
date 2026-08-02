@@ -1,25 +1,25 @@
 {
-  "workload": "1e6 pack(u16-range,u str'bench',nil) buffer-reuse + 1e6 unpack of fixed 3-item msg",
+  "workload": "1000000 pack(u16-range, str'bench', nil) buffer-reuse + 1000000 unpack of fixed 3-item msg",
   "ops_per_run": 6000000,
   "iterations": 1000000,
   "runs": 20,
   "warmup_runs": 2,
   "original_c": {
-    "p50_ms": 12.182125,
-    "p99_ms": 12.9695,
-    "mean_ms": 12.356592,
+    "p50_ms": 11.77625,
+    "p99_ms": 14.211375,
+    "mean_ms": 11.971444,
     "rss_kb": null,
-    "throughput_ops_per_s": 485570779.0
+    "throughput_ops_per_s": 501192671.0
   },
   "cwpack_rs": {
-    "p50_ms": 6.540625,
-    "p99_ms": 8.482916,
-    "mean_ms": 6.772431,
+    "p50_ms": 6.195542,
+    "p99_ms": 9.173542,
+    "mean_ms": 6.816821,
     "rss_kb": null,
-    "throughput_ops_per_s": 885944796.0
+    "throughput_ops_per_s": 880175671.0
   },
   "startup_ms": {
-    "original_c_p99": 4.2e-05,
+    "original_c_p99": 8.3e-05,
     "cwpack_rs_p99": 4.2e-05,
     "note": "in-process init+nil (not process spawn)"
   },

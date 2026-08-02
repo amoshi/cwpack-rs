@@ -6,7 +6,8 @@ CWPACK_SRC="${CWPACK_SRC:-$ROOT/../CWPack}"
 export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$ROOT/target}"
 RUNS="${RUNS:-20}"
 WARMUP="${WARMUP:-2}"
-ITERATIONS="${ITERATIONS:-1000000}"
+# Must match C `-DITERATIONS=` and Rust `env ITERATIONS` (export for rust_bench).
+export ITERATIONS="${ITERATIONS:-1000000}"
 
 cd "$ROOT"
 mkdir -p bench
@@ -116,7 +117,7 @@ python3 - <<PY
 import json
 from pathlib import Path
 doc = {
-  "workload": "1e6 pack(u16-range,u str'bench',nil) buffer-reuse + 1e6 unpack of fixed 3-item msg",
+  "workload": f"{int('$ITERATIONS')} pack(u16-range, str'bench', nil) buffer-reuse + {int('$ITERATIONS')} unpack of fixed 3-item msg",
   "ops_per_run": int("$OPS"),
   "iterations": int("$ITERATIONS"),
   "runs": int("$RUNS"),
